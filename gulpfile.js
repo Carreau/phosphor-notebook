@@ -21,7 +21,12 @@ var tsSources = [
     "kernel",
     "session",
     "utils",
-    "serialize"
+    "serialize",
+    "driveutils",
+    "gapiutils",
+    "drivecontents",
+    "pickerutils",
+    "notebook_model"
 ].map(function(name) {return "./src/" + name + ".ts"; });
 
 
@@ -33,7 +38,7 @@ gulp.task('clean', function(cb) {
 gulp.task('src', function() {
     var project = typescript.createProject({
         declarationFiles: true,
-        noImplicitAny: true,
+        noImplicitAny: false,
         target: 'ES5',
         module: 'amd'
     });
