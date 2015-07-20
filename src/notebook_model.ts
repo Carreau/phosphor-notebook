@@ -57,6 +57,10 @@ var transform_notebook = function(notebook:Notebook, transform_fn:(string)=> str
  * @return {Object} a JSON representation of the notebook.
      */
 export var notebookFromFileContents = function(contents:string):Notebook {
+    if(typeof(contents) !== 'string'){
+      console.warn("[notebook_model.ts] notebook is already not string, returning as is");
+      return <any>contents;
+    }
     var notebook:Notebook = <Notebook>JSON.parse(contents);
     // bug in some case notebook where serialized twice. (only on Google Drive)
     // make sure to re-deserialized, if once parse the notebook is still a

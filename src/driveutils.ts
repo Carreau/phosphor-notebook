@@ -4,7 +4,10 @@
 declare var  $ ;
 import gapiutils = require('./gapiutils');
 import pickerutils = require('./pickerutils');
+import nbmodel = require('./notebook_model');
 
+import Notebook = nbmodel.Notebook;
+import Cell = nbmodel.Cell;
 
 import iface = require('./content_interface');
 import Path = iface.Path
@@ -18,6 +21,47 @@ export var MULTIPART_BOUNDARY = '-------314159265358979323846';
 
 declare var gapi;
 
+
+export class RTList {
+  _gl:any;
+  constructor(gl:any){
+    this._gl = gl
+  }
+
+  getObject(index: number) {
+    return <Object>this._gl.get(index)
+  }
+}
+
+export class RTNotebook implements Notebook {
+  _gd:any;
+  _model:any;
+
+  constructor(gd:any, model:any){
+    this._gd = gd
+    this._model = model
+    debugger;
+    this.cells.insert(0, new RTList(model.createMap({'cell_type':'code'})))
+    debugger;
+  }
+
+  get cells(){
+    return this._gd.get('cells')
+  }
+
+  get metadata(){
+    return this._gd.get('metadata')
+  }
+
+  get nbformat(){
+    return  this._gd.get('nbformat')
+  }
+
+  get nbformat_minor(){
+    return this._gd.get('nbformat_minor')
+  }
+
+}
 
 
 
@@ -203,7 +247,7 @@ export var getNewFileName = function(opt_folderId, ext, base_name) {
  * @return {Promise} A promise resolved with the Google Drive Files
  *     resource for the uploaded file, or rejected with an Error object.
  */
-export var uploadToDrive = function(data:String, metadata:Object, opt_fileId?:String, opt_params?: Object) {
+export var uploadToDrive = function(data:String, metadata:{mimeType:String}, opt_fileId?:String, opt_params?: Object) {
     var params:Object = opt_params || {};
     var delimiter = '\r\n--' + MULTIPART_BOUNDARY + '\r\n';
     var close_delim = '\r\n--' + MULTIPART_BOUNDARY + '--';
@@ -264,7 +308,40 @@ export var GET_CONTENTS_EXPONENTIAL_BACKOFF_FACTOR = 2.0;
  */
 export var getContents = function(resource, already_picked:boolean, opt_num_tries?) {
     if (resource['downloadUrl']) {
-        return gapiutils.download(resource['downloadUrl']);
+      var _h = {resolve:null};
+      var real_time_model = new Promise(function(resolve){
+        _h.resolve = resolve;
+        })
+        gapi.drive.realtime.load(resource['id'], function(doc){
+            var model = doc.getModel();
+            var root = model.getRoot();
+
+            var metadata = root.get('metadata')
+            if ( metadata === null ){
+              console.info('[driveutils.ts] no metadata, populating with default')
+              root.set('metadata', model.createMap())
+            }
+
+            if( root.get('nbformat_minor') === null){
+                root.set('nbformat_minor', 0)
+            }
+
+            if( root.get('nbformat_minor') === null){
+                root.set('nbformat', 4)
+            }
+
+            if (root.get('cells') === null) {
+                root.set('cells', model.createList())
+            }
+
+            _h.resolve(new RTNotebook(root, model))
+            return root
+            // let's assume it is a notebook.
+            // debugger;
+        })
+      console.warn("[driveutils] will return ", real_time_model);
+      return real_time_model;
+      //return  gapiutils.download(resource['downloadUrl']);
     } else if (already_picked) {
         if (opt_num_tries == 0) {
           return Promise.reject(new Error('Max retries of file load reached'));

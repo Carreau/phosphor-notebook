@@ -47,7 +47,7 @@ gulp.task('src', function() {
         typescript: typescript,
         experimentalDecorators: true,
         declarationFiles: true,
-        noImplicitAny: true,
+        noImplicitAny: false,
         target: 'ES5',
         module: 'amd'
     });
