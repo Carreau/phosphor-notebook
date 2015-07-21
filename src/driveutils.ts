@@ -4,10 +4,10 @@
 declare var  $ ;
 import gapiutils = require('./gapiutils');
 import pickerutils = require('./pickerutils');
-import nbmodel = require('./notebook_model');
+import nbformat = require('./nbformat');
 
-import Notebook = nbmodel.Notebook;
-import Cell = nbmodel.Cell;
+import Notebook = nbformat.Notebook;
+import Cell = nbformat.Cell;
 
 import iface = require('./content_interface');
 import Path = iface.Path
@@ -22,7 +22,7 @@ export var MULTIPART_BOUNDARY = '-------314159265358979323846';
 declare var gapi;
 
 
-export class RTList {
+export class RTList implements nbformat.IList<Cell>{
   _gl:any;
   constructor(gl:any){
     this._gl = gl
@@ -31,22 +31,48 @@ export class RTList {
   getObject(index: number) {
     return <Object>this._gl.get(index)
   }
+  
+  get count():number {
+    return this._gl.length
+  }
+  
+  get(index:number):Cell {
+    return this._gl.get(index)
+  }
+  
+  set(index:number, value:Cell):void {
+    this._gl.set(index, value)
+  }
+  
+  insert(index:number, value:Cell):void {
+    this._gl.insert(index, value)
+  }
+  
+  push(value:Cell):void {
+    this._gl.insert(this.count, value)
+  }
+  
+  pop():Cell {
+    return this._gl.remove(this.count-1)
+  }
 }
+
 
 export class RTNotebook implements Notebook {
   _gd:any;
   _model:any;
+  _cells:any;
 
   constructor(gd:any, model:any){
     this._gd = gd
     this._model = model
-    debugger;
-    this.cells.insert(0, new RTList(model.createMap({'cell_type':'code'})))
-    debugger;
+    this._gd.get('cells').insert(0, model.createMap({'cell_type':'code', 
+      'source': model.createString('this is a colaborative string')
+    }))
   }
 
   get cells(){
-    return this._gd.get('cells')
+    return new RTList(this._gd.get('cells'))
   }
 
   get metadata(){
@@ -308,37 +334,33 @@ export var GET_CONTENTS_EXPONENTIAL_BACKOFF_FACTOR = 2.0;
  */
 export var getContents = function(resource, already_picked:boolean, opt_num_tries?) {
     if (resource['downloadUrl']) {
-      var _h = {resolve:null};
-      var real_time_model = new Promise(function(resolve){
+      var _h = {resolve:null, reject:null};
+      var real_time_model = new Promise(function(resolve, reject){
         _h.resolve = resolve;
-        })
-        gapi.drive.realtime.load(resource['id'], function(doc){
-            var model = doc.getModel();
-            var root = model.getRoot();
+        _h.reject = reject;
+      })
+      gapi.drive.realtime.load(resource['id'], function(doc){
+        console.log("[driveutils] RT load resource['id'] promise fullfilled")
+        var model = doc.getModel();
+        var root = model.getRoot();
 
-            var metadata = root.get('metadata')
-            if ( metadata === null ){
-              console.info('[driveutils.ts] no metadata, populating with default')
-              root.set('metadata', model.createMap())
-            }
-
-            if( root.get('nbformat_minor') === null){
-                root.set('nbformat_minor', 0)
-            }
-
-            if( root.get('nbformat_minor') === null){
-                root.set('nbformat', 4)
-            }
-
-            if (root.get('cells') === null) {
-                root.set('cells', model.createList())
-            }
-
-            _h.resolve(new RTNotebook(root, model))
-            return root
-            // let's assume it is a notebook.
-            // debugger;
-        })
+        var metadata = root.get('metadata')
+        if ( metadata === null ){
+          console.info('[driveutils.ts] no metadata, populating with default')
+          root.set('metadata', model.createMap())
+        }
+        if( root.get('nbformat_minor') === null){
+            root.set('nbformat_minor', 0)
+        }
+        if( root.get('nbformat_minor') === null){
+            root.set('nbformat', 4)
+        }
+        if (root.get('cells') === null) {
+            root.set('cells', model.createList())
+        }
+        console.log("[driveutils] will resolve _h to thing")
+        return _h.resolve(new RTNotebook(root, model))
+      })
       console.warn("[driveutils] will return ", real_time_model);
       return real_time_model;
       //return  gapiutils.download(resource['downloadUrl']);

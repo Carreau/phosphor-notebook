@@ -6,9 +6,10 @@ import utils = require('./utils');
 import gapiutils = require('./gapiutils');
 import driveutils = require('./driveutils');
 import notebook_model = require('./notebook_model');
+import nbformat = require('./nbformat');
 import iface = require('./content_interface');
 
-import Notebook = notebook_model.Notebook;
+import Notebook = nbformat.Notebook;
 import Path = iface.Path
 import IContents = iface.IContents
 import CheckpointId = iface.CheckpointId
@@ -237,15 +238,22 @@ export class GoogleDriveContents implements IContents {
      * Notebook Functions
      */
     get(path:Path, options:any) {
+        console.log("[drivecontent.ts], will get", path)
         var that = this;
         var metadata_prm = gapiutils.gapi_ready.then(
-            driveutils.getResourceForPath.bind(this, path, iface.FileType.FILE));
+            driveutils.getResourceForPath.bind(this, path, iface.FileType.FILE))
+            .then(function(value){
+              console.log("[drivecontents] metadata_prm fullfilled")
+              return value
+              });
         var contents_prm = metadata_prm.then(function(resource:any) {
+            console.log("[drivecontents] metadata promise fullfilled")
             that._observe_file_resource(resource);
             return driveutils.getContents(resource, false);
         });
 
         return Promise.all([metadata_prm, contents_prm]).then(function(values) {
+            console.log("[drivecontents.ts], contents and metadata promise sucessful")
             var metadata = values[0];
             var contents = values[1];
             var model = files_resource_to_contents_model(path, metadata, contents);

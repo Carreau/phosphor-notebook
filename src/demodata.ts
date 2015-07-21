@@ -180,8 +180,8 @@ var notebook_disk = {
    "language": "python",
    "name": "python2"
   },
-  "language_info": {
-   "codemirror_mode": {
+"language_info": {
+ "codemirror_mode": {
     "name": "ipython",
     "version": 2
    },

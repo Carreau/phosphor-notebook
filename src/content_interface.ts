@@ -3,7 +3,7 @@
  * Interface that a content manager should implement
  **/
 
-import notebook_model = require("notebook_model")
+import notebook_model = require("nbformat")
 import Notebook = notebook_model.Notebook;
 
 export interface IContents {

@@ -14,9 +14,9 @@ export function main(): void {
     var ct = new contents.GoogleDriveContents({
       base_url:'',
       common_config:{}
-
     })
     ct.get('AAAAA.ipynb',{}).then(function(data){
+      console.info('[index.ts] Will rerender with new Drive content')
       rerender(data.content)
     })
 };

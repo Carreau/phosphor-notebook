@@ -12,6 +12,8 @@ For executing, need:
 
 */
 
+declare var gapi;
+
 
 import nbformat = require("./nbformat");
 import mathjaxutils = require("./mathjaxutils");
@@ -117,7 +119,8 @@ renderer.link = function(href: string, title: string, text: string) {
 class MarkdownCellComponent extends BaseComponent<nbformat.MarkdownCell> {
   onUpdateRequest(msg: IMessage): void {
     // replace the innerHTML of the node with the rendered markdown
-    var t = mathjaxutils.remove_math(this.data.source);
+    //var t = mathjaxutils.remove_math(this.data.source);
+    var t = mathjaxutils.remove_math('foobar');
     marked(t.html, { sanitize: true, renderer: renderer}, (err: any, html: string) => {
         this.node.innerHTML = mathjaxutils.replace_math(html, t.math);
         // TODO: do some serious sanitization, using, for example, the caja sanitizer
@@ -146,6 +149,14 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
       mode: 'python',
       value: this.data.source,
       lineNumbers: true})
+     var that = this; 
+    this._editor.on('beforeChange', function(cm, change){
+        var val = <any>cm.getDoc().getValue();
+        
+        (<any>that.data).maybeupdate(val)
+    });
+    
+    (<any>this.data).onchange(()=>{this.onUpdateRequest(<any>{})})
   }
 
   protected onUpdateRequest(msg: IMessage): void {
@@ -187,12 +198,65 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
 }
 export var CodeCell = createFactory(CodeCellComponent);
 
+class CellAcessor implements nbformat.BaseCell{
+  _thing;
+  _oc:any;
+  constructor(thing:any){
+    this._thing = thing
+    this._oc = (data)=>{
+      console.log("this is triggerd on change",data)
+    }
+  }
+  
+  onchange(callback:any):void{
+    this._oc = callback;
+    if(this._thing.get !== undefined){
+      console.info("[NotebookComponent] setting up listeners");
+      this._thing.get('source').addEventListener(gapi.drive.realtime.EventType.TEXT_INSERTED, this._oc)
+      this._thing.get('source').addEventListener(gapi.drive.realtime.EventType.TEXT_DELETED, this._oc)
+    }
+  }
+  
+  maybeupdate(value){
+    if(this._thing.get !== undefined){
+      this._thing.get('source').setText(value)
+    } else {
+      console.log("[NotebookComponent] maybe update on non thing")
+    }
+    
+  }
+  
+  get cell_type():string{
+    return this._thing.cell_type||this._thing.get('cell_type')
+  }
+  
+  get metadata():Object{
+    return this._thing.metadata||this._thing.get('metadata')
+  }
+  
+  get source():any{
+    if (this._thing.get !== undefined){
+      return this._thing.get('source').getText()
+    } else {
+      return this._thing.source || 'default source'
+    }
+  }
+  
+  get outputs(){
+    return this._thing.output ||[]
+  }
+
+}
+
+
 class NotebookComponent extends Component<nbformat.Notebook> {
   render() {
+    console.info("[NotebookComponent] rendering notebook...")
     var cells = this.data.cells;
+    //debugger;
     var r: Elem[] = [];
     for(var i = 0; i < cells.count; i++) {
-      var c = cells.get(i);
+      var c = <any>(new CellAcessor(cells.get(i)));
       switch(c.cell_type) {
         case "code":
           r.push(CodeCell(<nbformat.CodeCell>c));

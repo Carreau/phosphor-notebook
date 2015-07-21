@@ -6,18 +6,8 @@
 
 declare var console:Console;
 
-export interface Cell {
-    source:String|String[];
-    metadata:Object;
-}
-
-export interface Notebook {
-    cells:Cell[];
-    metadata:Object;
-    nbformat:number;
-    nbformat_minor:number;
-}
-
+import nbformat = require("./nbformat");
+import Notebook = nbformat.Notebook;
 /**
  * Functions related to the Notebook JSON representation
  *
@@ -37,7 +27,7 @@ var transform_notebook = function(notebook:Notebook, transform_fn:(string)=> str
     if (!notebook['cells']) {
         return null;
     }
-    notebook['cells'].forEach(function(cell) {
+    var lambda = function(cell) {
       if (cell['source']) {
           cell['source'] = transform_fn(cell['source'])
       }
@@ -48,7 +38,10 @@ var transform_notebook = function(notebook:Notebook, transform_fn:(string)=> str
               }
           });
       }
-    });
+    }
+    for( var i=0; i< notebook.cells.count; i++){
+        lambda(notebook.cells[i])
+    }
 }
 
 /**
@@ -80,7 +73,7 @@ export var notebookFromFileContents = function(contents:string):Notebook {
         }
     };
     transform_notebook(<Notebook>notebook, unsplitLines);
-    notebook.metadata = notebook.metadata || {};
+    notebook.metadata = notebook.metadata || { kernelspec: {name:'', display_name:''}, language_info:{name:'foo'}};
     return notebook;
 }
 
@@ -130,14 +123,14 @@ export var file_contents_from_notebook = function(notebook:Notebook):string {
  */
 export var new_notebook = function():Notebook{
     return {
-        'cells' : [{
+        'cells' : new nbformat.BasicList([{
             'cell_type': 'code',
             'source': '',
             'outputs': [],
             'language': 'python',
             'metadata': {}
-        }],
-        'metadata': {},
+        }]),
+        'metadata': { kernelspec: {name:'', display_name:''}, language_info:{name:'foo'}},
         'nbformat': 4,
         'nbformat_minor': 0
     };
