@@ -116,13 +116,10 @@ renderer.link = function(href: string, title: string, text: string) {
     return `<a href="${href}" ${title ? `title="${title}"` : ""} ${href[0] !== "#" ? "target=_blank" : ""}>${text}</a>`;
 };
 
+/**
+ * get the absolute cursor position from CodeMirror's col, ch
+ */
 var toAbsoluteCursorPosition = function(cm:any, cursor:any):number {
-    /**
-     * get the absolute cursor position from CodeMirror's col, ch
-     */
-    if (!cursor) {
-        cursor = cm.getCursor();
-    }
     var cursor_pos = cursor.ch;
     for (var i = 0; i < cursor.line; i++) {
         cursor_pos += cm.getLine(i).length + 1;
@@ -139,10 +136,10 @@ export interface FromTo {
   to:LC
 }
 
+/**
+ * turn absolute cursor position into CodeMirror col, ch cursor
+ */
 var fromAbsoluteCursorPos = function (cm:any, cursor_pos:number):LC {
-  /**
-   * turn absolute cursor position into CodeMirror col, ch cursor
-   */
   var i:number, line, next_line;
   var offset = 0;
   for (i = 0, next_line=cm.getLine(i); next_line !== undefined; i++, next_line=cm.getLine(i)) {
@@ -177,27 +174,33 @@ class MarkdownCellComponent extends BaseComponent<nbformat.MarkdownCell> {
 }
 export var MarkdownCell = createFactory(MarkdownCellComponent)
 
-
-var on_add = function(cm, no_ignore_local=false){
-    var ignore_local = !no_ignore_local;
+/**
+ * factory for codemirror's callback on add and on delete
+ * that shoudl be triggers by the model. Need options not
+ * to ignore local change in soem case.
+ **/
+ // TODO, the event is still a GoogleRT event.
+ // wrap it in our own implementation.
+var on_add = function(cm, ignore_local=true){
     return function(evts){
         if(evts.isLocal && ignore_local){
-            //console.log("[on_add], discarding local change")
             return
         }
         var str = evts.text;
         var from = fromAbsoluteCursorPos(cm, evts.index)
         var to = from;
-        if(cm.getDoc().getValue().length > 2000){
-            return
-        }
-
         cm.getDoc().replaceRange(str, from, to, '+remote_sync');
     }
 };
 
-var on_del = function(cm, no_ignore_local=false){
-    var ignore_local = !no_ignore_local;
+/**
+ * factory for codemirror's callback on add and on delete
+ * that shoudl be triggers by the model. Need options not
+ * to ignore local change in soem case.
+ **/
+ // TODO, the event is still a GoogleRT event.
+ // wrap it in our own implementation.
+var on_del = function(cm, ignore_local=true){
     return function(evts){
         if(evts.isLocal && ignore_local){
             return
@@ -207,6 +210,7 @@ var on_del = function(cm, no_ignore_local=false){
         cm.getDoc().replaceRange('', from, to, '+remote_sync');
     }
 };
+
 /**
  * We inherit from BaseComponent so that we can explicitly control the rendering.  We want to use the virtual dom to render
  * the output, but we want to explicitly manage the code editor.
@@ -220,19 +224,24 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
     this.output_node = document.createElement('div');
     this.node.appendChild(this.editor_node);
     this.node.appendChild(this.output_node);
-
+    
+    var source = <MaybeCollaborativeString>(<any>this.data.source);
     this._editor  = CodeMirror(this.editor_node, {
       mode: 'python',
-      value: this.data.source,
-      lineNumbers: true})
-     var that = this;
-    this._editor.on('beforeChange', (cm, change) => {
+      value: source.value(),
+      lineNumbers: true});
+    var that = this;
+    
+    // change tha to changes at some point that are triggerd
+    // in batch operation. That shoudl make a difference for
+    // combining changes like commenting.
+    this._editor.on('change', (cm, change) => {
         console.log("[NotebookComponent] handeling change of type", change.origin)
         if(change.origin === 'setValue'){
           return
         }
         // need to handle paste
-        if(change.origin === '+input' || change.origin === 'paste'){
+        if(change.origin === '+input' || change.origin === 'paste' || change.origin === '*compose'){
             var index = toAbsoluteCursorPosition(cm, change.from)
             // handle insertion of new lines.
             //
@@ -243,22 +252,26 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
             // if htere is a to != from than we need to trigger a delete. first.
             var indexto = toAbsoluteCursorPosition(cm, change.to)
             if(index != indexto){
-              (<any>this.data).removeRange(index, indexto)
+              source.deleteRange(index, indexto)
             }
-            (<any>this.data).insert(index, text)
+            source.insert(index, text)
           } else if (change.origin == '+delete'){
               var startIndex = toAbsoluteCursorPosition(cm, change.from);
               var endIndex = toAbsoluteCursorPosition(cm, change.to);
-              (<any>this.data).removeRange(startIndex, endIndex);
+              source.deleteRange(startIndex, endIndex);
           } else if (change.origin === '+remote_sync'){
-            // nothing for now, just avoid recursion
+            var len= change.text.reduce(function(s, next) {
+                return s + next.length;
+            }, 0);
+              this._editor.getDoc().markText({line:change.from.line, ch:change.from.ch},
+                                         {line:change.to.line, ch:change.to.ch+1+len}, {css:'background-color: #DDF;', title:'Nyan Cat cursor'})
           } else {
             console.log("[NotebookComponent] Non known change, not updating model to avoid recursive update", change)
           }
     });
     
-    (<any>this.data).oninsert(on_add(this._editor) );
-    (<any>this.data).onremove(on_del(this._editor) );
+    source.oninsert(on_add(this._editor) );
+    source.ondelete(on_del(this._editor) );
   }
 
 
@@ -267,7 +280,8 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
 
   protected onUpdateRequest(msg: IMessage): void {
     // we could call setValue on the editor itself, but the dts file doesn't recognize it.
-    this._editor.getDoc().setValue(this.data.source);
+    this._editor.getDoc().setValue((<MaybeCollaborativeString>(<any>this.data.source)).value());
+    this._editor.getDoc().markText({line:0, ch:7}, {line:0, ch:9}, {css:'color: red; border:thin solid blue;', title:'Nyan Cat cursor'})
     // we may want to save the refs at some point
     render(this.renderOutput(), this.output_node);
   }
@@ -318,8 +332,8 @@ export class MaybeCollaborativeString {
     }
   }
   
-  rt():boolean{
-    return (this._origin.addEventlistener !== undefined)
+  get rt():boolean{
+    return (this._origin.addEventListener !== undefined)
   }
   
   oninsert(callback:(evt)=>void):void{
@@ -354,34 +368,6 @@ class CellAcessor implements nbformat.BaseCell{
     this._thing = thing
   }
   
-  oninsert(callback:(evt)=>void):void{
-    if(this.rt){
-      this._thing.get('source').addEventListener(gapi.drive.realtime.EventType.TEXT_INSERTED, callback)
-    }
-  }
-  
-  onremove(callback:(evt)=>void):void{
-    if(this.rt){
-      this._thing.get('source').addEventListener(gapi.drive.realtime.EventType.TEXT_DELETED, callback)
-    }
-  }
-  
-  get rt(){
-    return (this._thing.get !== undefined)
-  }
-  
-  insert(index:number, text:string):void{
-    if(this.rt){
-      this._thing.get('source').insertString(index, text)
-    }
-  }
-  
-  removeRange(from:number, to:number):void{
-    if(this.rt){
-        this._thing.get('source').removeRange(from, to)
-    }
-  }
-  
   get cell_type():string{
     return this._thing.cell_type||this._thing.get('cell_type')
   }
@@ -392,9 +378,9 @@ class CellAcessor implements nbformat.BaseCell{
   
   get source():any{
     if (this._thing.get !== undefined){
-      return this._thing.get('source').getText()
+      return new MaybeCollaborativeString(this._thing.get('source'))
     } else {
-      return this._thing.source || 'default source'
+      return new MaybeCollaborativeString(this._thing.source || 'default source')
     }
   }
   
@@ -409,7 +395,6 @@ class NotebookComponent extends Component<nbformat.INotebookInterface> {
   render() {
     console.info("[NotebookComponent] rendering notebook...")
     var cells = this.data.cells;
-    //debugger;
     var r: Elem[] = [];
     for(var i = 0; i < cells.count; i++) {
       var c = <any>(new CellAcessor(cells.get(i)));
