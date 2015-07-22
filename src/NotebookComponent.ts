@@ -178,7 +178,7 @@ class MarkdownCellComponent extends BaseComponent<nbformat.MarkdownCell> {
 export var MarkdownCell = createFactory(MarkdownCellComponent)
 
 
-var on_add = function(cm, no_ignore_local){
+var on_add = function(cm, no_ignore_local=true){
     var ignore_local = !no_ignore_local;
     return function(evts){
         if(evts.isLocal && ignore_local){
@@ -196,7 +196,7 @@ var on_add = function(cm, no_ignore_local){
     }
 };
 
-var on_del = function(cm, no_ignore_local){
+var on_del = function(cm, no_ignore_local=true){
     var ignore_local = !no_ignore_local;
     return function(evts){
         if(evts.isLocal && ignore_local){
@@ -227,12 +227,12 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
       lineNumbers: true})
      var that = this;
     this._editor.on('beforeChange', (cm, change) => {
-        console.log("[NotebookComponent] handeling change of type", (<any>change).origin)
-        if((<any>change).origin === 'setValue'){
+        console.log("[NotebookComponent] handeling change of type", change.origin)
+        if(change.origin === 'setValue'){
           return
         }
         // need to handle paste
-        if((<any>change).origin === '+input' || (<any>change).origin === 'paste'){
+        if(change.origin === '+input' || change.origin === 'paste'){
             var index = toAbsoluteCursorPosition(cm, change.from)
             // handle insertion of new lines.
             //
@@ -246,16 +246,16 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
               (<any>this.data).removeRange(index, indexto)
             }
             (<any>this.data).insert(index, text)
-          } else if ((<any>change).origin == '+delete'){
+          } else if (change.origin == '+delete'){
               var startIndex = toAbsoluteCursorPosition(cm, change.from);
               var endIndex = toAbsoluteCursorPosition(cm, change.to);
               (<any>this.data).removeRange(startIndex, endIndex);
-          } else if ((<any>change).origin === '+remote_sync'){
+          } else if (change.origin === '+remote_sync'){
             // nothing for now, just avoid recursion
           } else {
             console.log("[NotebookComponent] Non known change, not updating model to avoid recursive update", change)
           }
-        //console.log('change origin', (<any>change).origin, change)
+        //console.log('change origin', change.origin, change)
         //var val = <any>cm.getDoc().getValue();
         
         //(<any>that.data).maybeupdate(val)
