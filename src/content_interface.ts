@@ -4,11 +4,11 @@
  **/
 
 import notebook_model = require("nbformat")
-import Notebook = notebook_model.Notebook;
+import INotebookInterface = notebook_model.INotebookInterface;
 
 export interface IContents {
     get(path:Path, type:FileType, options:Object):any
-    new_untitled(path:Path, options:Object):Notebook
+    new_untitled(path:Path, options:Object):INotebookInterface
     delete(path:Path):void
     rename(path: Path, new_path: Path):Promise<any>
     save(path: Path, model: any, options?:any):Promise<any>

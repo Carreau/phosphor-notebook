@@ -6,7 +6,7 @@ import gapiutils = require('./gapiutils');
 import pickerutils = require('./pickerutils');
 import nbformat = require('./nbformat');
 
-import Notebook = nbformat.Notebook;
+import INotebookInterface = nbformat.INotebookInterface;
 import Cell = nbformat.Cell;
 
 import iface = require('./content_interface');
@@ -58,7 +58,7 @@ export class RTList implements nbformat.IList<Cell>{
 }
 
 
-export class RTNotebook implements Notebook {
+export class RTNotebook implements INotebookInterface {
   _gd:any;
   _model:any;
   _cells:any;

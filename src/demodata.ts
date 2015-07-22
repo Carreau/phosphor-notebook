@@ -5,14 +5,14 @@ var multiToString = function(x: string | string[]): string {
   return (typeof x === "string") ? x : x.join("");
 }
 
-var diskToMemory = function(disknb: any): nbformat.Notebook {
+var diskToMemory = function(disknb: any): nbformat.INotebookInterface {
   // Make a copy
   var nb = JSON.parse(JSON.stringify(disknb));
   // Convert multiline strings that are arrays to just strings
-  var cells = new nbformat.BasicList<nbformat.Cell>(nb.cells);
+  var cells = new nbformat.BasicList<nbformat.ICell>(nb.cells);
   for (var i = 0; i<cells.count; i++) {
     var c = cells.get(i);
-    var c_type = c.cell_type;
+    var c_type = (<nbformat.ICodeCell>c).cell_type;
     if (c_type === "raw" || c_type === "markdown" || c_type === "code") {
         c.source = multiToString(c.source)
     }
@@ -197,4 +197,4 @@ var notebook_disk = {
  "nbformat_minor": 0
 }
 
-export var notebook: nbformat.Notebook = diskToMemory(notebook_disk);
+export var notebook: nbformat.INotebookInterface = diskToMemory(notebook_disk);

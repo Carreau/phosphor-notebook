@@ -7,6 +7,7 @@
 declare var console:Console;
 
 import nbformat = require("./nbformat");
+import INotebookInterface = nbformat.INotebookInterface;
 import Notebook = nbformat.Notebook;
 /**
  * Functions related to the Notebook JSON representation
@@ -39,7 +40,7 @@ var transform_notebook = function(notebook:Notebook, transform_fn:(string)=> str
           });
       }
     }
-    for( var i=0; i< notebook.cells.count; i++){
+    for( var i=0; i< notebook.cells.length; i++){
         lambda(notebook.cells[i])
     }
 }
@@ -49,7 +50,7 @@ var transform_notebook = function(notebook:Notebook, transform_fn:(string)=> str
  * @param {String} contents The contents of the file, as a string.
  * @return {Object} a JSON representation of the notebook.
      */
-export var notebookFromFileContents = function(contents:string):Notebook {
+export var notebookFromFileContents = function(contents:string):INotebookInterface {
     if(typeof(contents) !== 'string'){
       console.warn("[notebook_model.ts] notebook is already not string, returning as is");
       return <any>contents;
@@ -74,7 +75,11 @@ export var notebookFromFileContents = function(contents:string):Notebook {
     };
     transform_notebook(<Notebook>notebook, unsplitLines);
     notebook.metadata = notebook.metadata || { kernelspec: {name:'', display_name:''}, language_info:{name:'foo'}};
-    return notebook;
+    return JSON_notebook_to_model_notebook(notebook);
+}
+
+export var JSON_notebook_to_model_notebook = function(notebook:Notebook):INotebookInterface {
+  return <INotebookInterface>(<any>notebook)
 }
 
 /**
@@ -121,7 +126,7 @@ export var file_contents_from_notebook = function(notebook:Notebook):string {
  * @param {string} name Notebook name
  * @return {Object} JSON representation of a new notebook.
  */
-export var new_notebook = function():Notebook{
+export var new_notebook = function():INotebookInterface{
     return {
         'cells' : new nbformat.BasicList([{
             'cell_type': 'code',

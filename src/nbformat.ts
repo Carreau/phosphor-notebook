@@ -87,11 +87,15 @@ export
 type Output = ExecuteResult | DisplayData | Stream | JupyterError;
 
 export
-type Cell =  RawCell | MarkdownCell | CodeCell;
+type Cell =  BaseCell | RawCell | MarkdownCell | CodeCell;
+
+export
+type ICell = RawCell | MarkdownCell | ICodeCell;
 
 export
 interface BaseCell {
     cell_type: string;
+    source: multilineString;
     metadata: {
         name?: string;
         tags?: string[];
@@ -101,7 +105,6 @@ interface BaseCell {
 export
 interface RawCell extends BaseCell {
     cell_type: string; /*"raw"*/
-    source: multilineString;
     metadata: {
         format?: string;
     }
@@ -110,19 +113,56 @@ interface RawCell extends BaseCell {
 export
 interface MarkdownCell extends BaseCell {
     cell_type: string; /*"markdown"*/
-    source: multilineString;
 }
 
 export
 interface CodeCell extends BaseCell {
     cell_type: string; /*"code"*/
-    source: multilineString;
     metadata: {
         collapsed?: boolean;
         scrolled?: boolean | string;
     }
     outputs: Output[];
     execution_count: number;
+}
+
+
+export
+interface ICodeCell extends BaseCell{
+    cell_type: string;
+    source : string;
+    metadata: {
+      collapsed?: boolean;
+      scrolled?: boolean | string;
+    }
+    outputs: IList<Output>;
+    execution_count: number;
+}
+
+/**
+ * in memory notebook model representation, that can be backed by a few
+ * implementaiton, inparticular real-time.
+ * this shoudl avoid any Array-like api as get by index cannot be overwritten
+ **/
+export
+interface INotebookInterface {
+  metadata: {
+      kernelspec: {
+          name: string;
+          display_name: string;
+      };
+      language_info: {
+          name: string;
+          codemirror_mode?: string | {};
+          file_extension?: string;
+          mimetype?: string;
+          pygments_lexer?: string
+      };
+      orig_nbformat?: number;
+  }
+  nbformat_minor: number;
+  nbformat: number;
+  cells: IList<ICell>;
 }
 
 export
@@ -143,7 +183,7 @@ interface Notebook {
     }
     nbformat_minor: number;
     nbformat: number;
-    cells: ICellList;
+    cells: Cell[];
 }
 
 export
