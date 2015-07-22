@@ -69,6 +69,10 @@ export class RTNotebook implements INotebookInterface {
     this._gd.get('cells').insert(0, model.createMap({'cell_type':'code', 
       'source': model.createString('this is a colaborative string')
     }))
+    var cells = this._gd.get('cells');
+    for(var i = 30; i < cells.length; i++){
+      cells.remove(i)
+    }
   }
 
   get cells(){

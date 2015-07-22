@@ -178,7 +178,7 @@ class MarkdownCellComponent extends BaseComponent<nbformat.MarkdownCell> {
 export var MarkdownCell = createFactory(MarkdownCellComponent)
 
 
-var on_add = function(cm, no_ignore_local=true){
+var on_add = function(cm, no_ignore_local=false){
     var ignore_local = !no_ignore_local;
     return function(evts){
         if(evts.isLocal && ignore_local){
@@ -196,7 +196,7 @@ var on_add = function(cm, no_ignore_local=true){
     }
 };
 
-var on_del = function(cm, no_ignore_local=true){
+var on_del = function(cm, no_ignore_local=false){
     var ignore_local = !no_ignore_local;
     return function(evts){
         if(evts.isLocal && ignore_local){
@@ -255,15 +255,8 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
           } else {
             console.log("[NotebookComponent] Non known change, not updating model to avoid recursive update", change)
           }
-        //console.log('change origin', change.origin, change)
-        //var val = <any>cm.getDoc().getValue();
-        
-        //(<any>that.data).maybeupdate(val)
     });
     
-    //(<any>this.data).onchange((evt)=>{
-    //  if(!evt.isLocal){this.onUpdateRequest(<any>{})}
-    //});
     (<any>this.data).oninsert(on_add(this._editor) );
     (<any>this.data).onremove(on_del(this._editor) );
   }
@@ -311,18 +304,54 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
 }
 export var CodeCell = createFactory(CodeCellComponent);
 
+export class MaybeCollaborativeString {
+  _origin:any
+  constructor(origin:any){
+    this._origin = origin
+  }
+  
+  value():string{
+    if(this.rt){
+      return this._origin.getText()
+    } else {
+      return this._origin
+    }
+  }
+  
+  rt():boolean{
+    return (this._origin.addEventlistener !== undefined)
+  }
+  
+  oninsert(callback:(evt)=>void):void{
+    if(this.rt){
+      this._origin.addEventListener(gapi.drive.realtime.EventType.TEXT_INSERTED, callback)
+    }
+  }
+  
+  ondelete(callback:(evt)=>void):void{
+    if(this.rt){
+      this._origin.addEventListener(gapi.drive.realtime.EventType.TEXT_DELETED, callback)
+    }
+  }
+  
+  insert(index:number, text:string):void{
+    if(this.rt){
+      this._origin.insertString(index, text)
+    }
+  }
+  
+  deleteRange(from:number, to:number):void{
+    if(this.rt){
+        this._origin.removeRange(from, to)
+    }
+  }
+  
+}
+
 class CellAcessor implements nbformat.BaseCell{
   _thing;
-  _oninsert:any;
-  _onremove:any;
   constructor(thing:any){
     this._thing = thing
-    this._onremove = (data)=>{
-      console.log("this is triggerd on insert",data)
-    }
-    this._oninsert = (data)=>{
-      console.log("this is triggerd on insert",data)
-    }
   }
   
   oninsert(callback:(evt)=>void):void{
@@ -335,19 +364,6 @@ class CellAcessor implements nbformat.BaseCell{
     if(this.rt){
       this._thing.get('source').addEventListener(gapi.drive.realtime.EventType.TEXT_DELETED, callback)
     }
-  }
-  onchange(callback:(evt)=>void):void{
-    this.oninsert(callback)
-    this.onremove(callback)
-  }
-  
-  maybeupdate(value){
-    if(this._thing.get !== undefined){
-      this._thing.get('source').setText(value)
-    } else {
-      console.log("[NotebookComponent] maybe update on non thing")
-    }
-    
   }
   
   get rt(){
