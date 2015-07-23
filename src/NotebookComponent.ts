@@ -180,16 +180,12 @@ export var MarkdownCell = createFactory(MarkdownCellComponent)
 
 /**
  * factory for codemirror's callback on add and on delete
- * that shoudl be triggers by the model. Need options not
- * to ignore local change in soem case.
+ * that shoudl be triggers by the model.
  **/
  // TODO, the event is still a GoogleRT event.
  // wrap it in our own implementation.
-var on_add = function(cm, ignore_local=true){
+var on_add = function(cm){
     return function(evts){
-        if(evts.isLocal && ignore_local){
-            return
-        }
         var str = evts.text;
         var from = fromAbsoluteCursorPos(cm, evts.index)
         var to = from;
@@ -199,16 +195,12 @@ var on_add = function(cm, ignore_local=true){
 
 /**
  * factory for codemirror's callback on add and on delete
- * that shoudl be triggers by the model. Need options not
- * to ignore local change in soem case.
+ * that shoudl be triggers by the model.
  **/
  // TODO, the event is still a GoogleRT event.
  // wrap it in our own implementation.
-var on_del = function(cm, ignore_local=true){
+var on_del = function(cm){
     return function(evts){
-        if(evts.isLocal && ignore_local){
-            return
-        }
         var from = fromAbsoluteCursorPos(cm, evts.index);
         var to   = fromAbsoluteCursorPos(cm, evts.index+evts.text.length);
         cm.getDoc().replaceRange('', from, to, '+remote_sync');
@@ -281,8 +273,8 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
           }
     });
     
-    source.oninsert(on_add(this._editor) );
-    source.ondelete(on_del(this._editor) );
+    source.oninsert(on_add(this._editor));
+    source.ondelete(on_del(this._editor));
   }
 
 
@@ -355,15 +347,27 @@ export class MaybeCollaborativeString {
     return (this._origin.addEventListener !== undefined)
   }
   
-  oninsert(callback:(evt)=>void):void{
+  oninsert(callback:(evt)=>void, onlocal=false):void{
     if(this.rt){
-      this._origin.addEventListener(gapi.drive.realtime.EventType.TEXT_INSERTED, callback)
+      this._origin.addEventListener(gapi.drive.realtime.EventType.TEXT_INSERTED,
+        (event) => {
+          if(event.isLocal !== true){
+            callback(event)
+          }
+        }
+      )
     }
   }
   
-  ondelete(callback:(evt)=>void):void{
+  ondelete(callback:(evt)=>void, onlocal=false):void{
     if(this.rt){
-      this._origin.addEventListener(gapi.drive.realtime.EventType.TEXT_DELETED, callback)
+      this._origin.addEventListener(gapi.drive.realtime.EventType.TEXT_DELETED,
+        (event) => {
+          if(event.isLocal !== true){
+            callback(event)
+          }
+        }
+      )
     }
   }
   
