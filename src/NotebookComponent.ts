@@ -122,7 +122,11 @@ renderer.link = function(href: string, title: string, text: string) {
 var toAbsoluteCursorPosition = function(cm:any, cursor:any):number {
     var cursor_pos = cursor.ch;
     for (var i = 0; i < cursor.line; i++) {
-        cursor_pos += cm.getLine(i).length + 1;
+        try {
+          cursor_pos += cm.getLine(i).length + 1;
+        } catch (e){
+          debugger;
+        }
     }
     return cursor_pos;
 };
@@ -224,14 +228,14 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
     this.output_node = document.createElement('div');
     this.node.appendChild(this.editor_node);
     this.node.appendChild(this.output_node);
-    
+
     var source = <MaybeCollaborativeString>(<any>this.data.source);
     this._editor  = CodeMirror(this.editor_node, {
       mode: 'python',
-      value: source.value(),
+      value: source.value,
       lineNumbers: true});
     var that = this;
-    
+  
     // change tha to changes at some point that are triggerd
     // in batch operation. That shoudl make a difference for
     // combining changes like commenting.
@@ -246,7 +250,7 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
             // handle insertion of new lines.
             //
             var text = change.text[0];
-            if(change.text.length == 2){
+            if(change.text.length >= 2){
                 text = change.text.join('\n');
             }
             // if htere is a to != from than we need to trigger a delete. first.
@@ -256,6 +260,12 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
             }
             source.insert(index, text)
           } else if (change.origin == '+delete'){
+              // TODO do not use cm here to calculate new position,
+              // as we are not in beforeChange, use the actual removed text.
+              // this might also be a problem when deleting across lines boundaries.,
+              // as we compute the new thign positon with line n+1
+              // leading to only a new line bbeign deleted on the local codemirro instance.
+              // but the full line beeing destryed on the other side
               var startIndex = toAbsoluteCursorPosition(cm, change.from);
               var endIndex = toAbsoluteCursorPosition(cm, change.to);
               source.deleteRange(startIndex, endIndex);
@@ -263,8 +273,9 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
             var len= change.text.reduce(function(s, next) {
                 return s + next.length;
             }, 0);
-              this._editor.getDoc().markText({line:change.from.line, ch:change.from.ch},
-                                         {line:change.to.line, ch:change.to.ch+1+len}, {css:'background-color: #DDF;', title:'Nyan Cat cursor'})
+            this._editor.getDoc().markText({line:change.from.line, ch:change.from.ch},
+                                           {line:change.to.line, ch:change.to.ch+1+len},
+                                           {css:'background-color: #DDF;', title:'Nyan Cat cursor'})
           } else {
             console.log("[NotebookComponent] Non known change, not updating model to avoid recursive update", change)
           }
@@ -275,13 +286,8 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
   }
 
 
-
-
-
   protected onUpdateRequest(msg: IMessage): void {
-    // we could call setValue on the editor itself, but the dts file doesn't recognize it.
-    this._editor.getDoc().setValue((<MaybeCollaborativeString>(<any>this.data.source)).value());
-    this._editor.getDoc().markText({line:0, ch:7}, {line:0, ch:9}, {css:'color: red; border:thin solid blue;', title:'Nyan Cat cursor'})
+    this._editor.getDoc().setValue((<MaybeCollaborativeString>(<any>this.data.source)).value);
     // we may want to save the refs at some point
     render(this.renderOutput(), this.output_node);
   }
@@ -289,6 +295,7 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
   protected onAfterAttach(msg: IMessage): void {
     this._editor.refresh();
   }
+  
   renderOutput(): Elem[] {
     var r: Elem[] = [];
     var outputs: nbformat.Output[] = this.data.outputs;
@@ -318,17 +325,29 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
 }
 export var CodeCell = createFactory(CodeCellComponent);
 
+/**
+ * Wrapper around the cells' sources, that expose potentially
+ * collaborative methods.
+ **/
 export class MaybeCollaborativeString {
   _origin:any
   constructor(origin:any){
     this._origin = origin
   }
   
-  value():string{
+  get value():string{
     if(this.rt){
       return this._origin.getText()
     } else {
       return this._origin
+    }
+  }
+  
+  set value(newValue:string){
+    if(this.rt){
+      this._origin.setText(newValue);
+    } else {
+      this._origin = newValue;
     }
   }
   
