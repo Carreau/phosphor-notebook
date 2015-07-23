@@ -185,7 +185,7 @@ export var MarkdownCell = createFactory(MarkdownCellComponent)
  // TODO, the event is still a GoogleRT event.
  // wrap it in our own implementation.
 var on_add = function(cm){
-    return function(evts){
+    return function(evts:ICollaborativeStringEvent):void{
         var str = evts.text;
         var from = fromAbsoluteCursorPos(cm, evts.index)
         var to = from;
@@ -200,7 +200,7 @@ var on_add = function(cm){
  // TODO, the event is still a GoogleRT event.
  // wrap it in our own implementation.
 var on_del = function(cm){
-    return function(evts){
+    return function(evts:ICollaborativeStringEvent):void{
         var from = fromAbsoluteCursorPos(cm, evts.index);
         var to   = fromAbsoluteCursorPos(cm, evts.index+evts.text.length);
         cm.getDoc().replaceRange('', from, to, '+remote_sync');
@@ -221,7 +221,7 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
     this.node.appendChild(this.editor_node);
     this.node.appendChild(this.output_node);
 
-    var source = <MaybeCollaborativeString>(<any>this.data.source);
+    var source = <IMaybeCollaborativeString>(<any>this.data.source);
     this._editor  = CodeMirror(this.editor_node, {
       mode: 'python',
       value: source.value,
@@ -236,7 +236,7 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
         if(change.origin === 'setValue'){
           return
         }
-        // need to handle paste
+        // TODO need to handle undo/redo
         if(change.origin === '+input' || change.origin === 'paste' || change.origin === '*compose'){
             var index = toAbsoluteCursorPosition(cm, change.from)
             // handle insertion of new lines.
@@ -279,7 +279,7 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
 
 
   protected onUpdateRequest(msg: IMessage): void {
-    this._editor.getDoc().setValue((<MaybeCollaborativeString>(<any>this.data.source)).value);
+    this._editor.getDoc().setValue((<IMaybeCollaborativeString>(<any>this.data.source)).value);
     // we may want to save the refs at some point
     render(this.renderOutput(), this.output_node);
   }
@@ -317,18 +317,43 @@ class CodeCellComponent extends BaseComponent<nbformat.CodeCell> {
 }
 export var CodeCell = createFactory(CodeCellComponent);
 
+export interface IMaybeCollaborativeString {
+  value:string
+  collaborative:boolean
+  oninsert(callback:(evt:ICollaborativeStringEvent)=>void, onlocal?:boolean):void
+  ondelete(callback:(evt:ICollaborativeStringEvent)=>void, onlocal?:boolean):void
+  insert(index:number, text:string):void
+  deleteRange(from:number, to:number):void
+  
+}
+
+export interface ICollaborativeStringEvent {
+  index:number
+  text:string
+}
+
+export class CollaborativeStringEvent {
+  index:number
+  text:string
+  constructor(evt:any){
+    this.index = evt.index
+    this.text = evt.text
+  }
+}
+
 /**
  * Wrapper around the cells' sources, that expose potentially
  * collaborative methods.
  **/
-export class MaybeCollaborativeString {
+export class MaybeCollaborativeString implements IMaybeCollaborativeString{
+  
   _origin:any
   constructor(origin:any){
     this._origin = origin
   }
   
   get value():string{
-    if(this.rt){
+    if(this.collaborative){
       return this._origin.getText()
     } else {
       return this._origin
@@ -336,23 +361,23 @@ export class MaybeCollaborativeString {
   }
   
   set value(newValue:string){
-    if(this.rt){
+    if(this.collaborative){
       this._origin.setText(newValue);
     } else {
       this._origin = newValue;
     }
   }
   
-  get rt():boolean{
+  get collaborative():boolean{
     return (this._origin.addEventListener !== undefined)
   }
   
-  oninsert(callback:(evt)=>void, onlocal=false):void{
-    if(this.rt){
+  oninsert(callback:(evt:ICollaborativeStringEvent)=>void, onlocal=false):void{
+    if(this.collaborative){
       this._origin.addEventListener(gapi.drive.realtime.EventType.TEXT_INSERTED,
         (event) => {
           if(event.isLocal !== true){
-            callback(event)
+            callback(new CollaborativeStringEvent(event))
           }
         }
       )
@@ -360,11 +385,11 @@ export class MaybeCollaborativeString {
   }
   
   ondelete(callback:(evt)=>void, onlocal=false):void{
-    if(this.rt){
+    if(this.collaborative){
       this._origin.addEventListener(gapi.drive.realtime.EventType.TEXT_DELETED,
         (event) => {
           if(event.isLocal !== true){
-            callback(event)
+            callback(new CollaborativeStringEvent(event))
           }
         }
       )
@@ -372,13 +397,13 @@ export class MaybeCollaborativeString {
   }
   
   insert(index:number, text:string):void{
-    if(this.rt){
+    if(this.collaborative){
       this._origin.insertString(index, text)
     }
   }
   
   deleteRange(from:number, to:number):void{
-    if(this.rt){
+    if(this.collaborative){
         this._origin.removeRange(from, to)
     }
   }
